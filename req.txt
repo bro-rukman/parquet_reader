@@ -1,0 +1,4 @@
+protobuf==4.21.9
+python-dotenv==0.21.0
+pywatchman==1.4.1
+six==1.16.0

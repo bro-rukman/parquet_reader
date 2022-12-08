@@ -1,5 +1,6 @@
 import psycopg2 as pg
 import sqlalchemy
+import os
 
 database = "huawei"
 user = "postgres"
@@ -7,11 +8,16 @@ password = "password"
 host = "localhost"
 port = "5432"
 
-
 pg_conn = pg.connect(database=database, user=user,
                      password=password, host=host, port=port)
 connections_sqlalchemy = sqlalchemy.create_engine(
     "postgresql+psycopg2://{0}:{1}@{2}:{3}/{4}".format(user, password, host, port, database))
+
+
+def connection_psycopg2():
+    pg_conn = pg.connect(database="huawei", user="postgres",
+                         password="password", host="localhost", port=5432)
+    return pg_conn
 
 
 def get_column():

@@ -1,14 +1,15 @@
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
+from threading import Thread
 import numpy as np
 import os
 import psycopg2.extras
 import psycopg2 as pg
 import time
-import threading
 from multiprocessing.pool import ThreadPool
 from utils.connection import get_column
 
-path = "/Users/endangrukmana/Downloads/parquet/example"
+path = "/Users/endangrukmana/Downloads/parquet/20220925"
 dir_list = os.listdir(path)
 data_cols = get_column()
 pg_connection = pg.connect(database="huawei",
@@ -70,8 +71,47 @@ def insert(data):
     # conn.close()
     # print('query generated')
 
+
 def execute_data(data):
     if len(data) > 0:
+        df_columns = list(data)
+        columns = ','.join(f'"{w}"' for w in df_columns)
+        values = "VALUES({})".format(",".join(["%s" for _ in df_columns]))
+        insert_statement = "INSERT INTO data_sample ({}) {}".format(
+            columns, values)
+        curr = pg_connection.cursor()
+        psycopg2.extras.execute_batch(
+            curr, insert_statement, data.values)
+    pg_connection.commit()
+
+
+def script(file):
+    try:
+        read_data = pd.read_parquet(file, engine='auto')
+        read_data = read_data[data_cols]
+        data_clean = read_data.replace({np.nan: None})
+        # if len(data_clean) > 0:
+        #     df_columns = list(data_clean)
+        #     columns = ','.join(f'"{w}"' for w in df_columns)
+        #     values = "VALUES({})".format(",".join(["%s" for _ in df_columns]))
+        #     insert_statement = "INSERT INTO data_sample ({}) {}".format(
+        #         columns, values)
+        #     curr = pg_connection.cursor()
+        #     psycopg2.extras.execute_batch(
+        #         curr, insert_statement, data_clean.values)
+        # pg_connection.commit()
+        # execute_data(data_clean)
+        del data_clean
+    except:
+        print("Failed file: {}".format(file))
+
+
+class multi_threading:
+    def __init__(self, file):
+        self.file = file
+
+    def insert_data(data):
+        if len(data) > 0:
             df_columns = list(data)
             columns = ','.join(f'"{w}"' for w in df_columns)
             values = "VALUES({})".format(",".join(["%s" for _ in df_columns]))
@@ -80,20 +120,49 @@ def execute_data(data):
             curr = pg_connection.cursor()
             psycopg2.extras.execute_batch(
                 curr, insert_statement, data.values)
-    pg_connection.commit()
-def script(file):
+        pg_connection.commit()
+
+    def parsing_file(self):
+        try:
+            read_data = pd.read_parquet(self.file, engine='auto')
+            read_data = read_data[data_cols]
+            data_clean = read_data.replace({np.nan: None})
+            # if len(data_clean) > 0:
+            #     df_columns = list(data_clean)
+            #     columns = ','.join(f'"{w}"' for w in df_columns)
+            #     values = "VALUES({})".format(
+            #         ",".join(["%s" for _ in df_columns]))
+            #     insert_statement = "INSERT INTO data_sample ({}) {}".format(
+            #         columns, values)
+            #     curr = pg_connection.cursor()
+            #     psycopg2.extras.execute_batch(
+            #         curr, insert_statement, data_clean.values)
+            # pg_connection.commit()
+            # self.insert_data(data_clean)
+            del data_clean
+            print("Succeeded : {}".format(self.file))
+        except:
+            print("Failed : {}".format(self.file))
+
+    def run(self):
+        self.parsing_file()
+
+
+if __name__ == "__main__":
     start = time.time()
-    try:
-        read_data = pd.read_parquet(file, engine='auto')
-        read_data = read_data[data_cols]
-        data_clean = read_data.replace({np.nan: None})
-        
-        del read_data
-        print('Success to processing : {} with time: {}'.format(
-            file, time.time()-start))
-    except:
-        print("Failed to processing : {}".format(file))
+    # for file in files:
+    #     multi_threading(file).run()
 
+    # thread_list = []
+    # for file in files:
+    #     t = Thread(target=multi_threading(file).run)
+    #     t.start()
+    #     thread_list.append(t)
+    # for thread in thread_list:
+    #     thread.join()
 
-with ThreadPool(10) as pool:
-    pool.map(script, files, chunksize=1)
+    with ThreadPoolExecutor(10) as executor:
+        t_res = executor.map(script, files)
+    # with ThreadPool(10) as pool:
+    #     pool.map(script, files, chunksize=1)
+    print("Time consumed {}".format(time.time()-start))
