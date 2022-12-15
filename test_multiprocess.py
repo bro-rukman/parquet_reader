@@ -119,7 +119,7 @@ class multi_threading:
                 columns, values)
             curr = pg_connection.cursor()
             psycopg2.extras.execute_batch(
-                curr, insert_statement, data.values)
+                curr, insert_statement, data.values)    
         pg_connection.commit()
 
     def parsing_file(self):

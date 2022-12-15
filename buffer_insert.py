@@ -9,8 +9,9 @@ import time
 from io import StringIO
 from multiprocessing.pool import ThreadPool
 from utils.connection import get_column
+import csv
 
-path = "/Users/endangrukmana/Downloads/parquet/example"
+path = "/Users/endangrukmana/Downloads/parquet/example1"
 dir_list = os.listdir(path)
 data_cols = get_column()
 pg_connection = pg.connect(database="huawei",
@@ -72,6 +73,9 @@ def insert(data):
     # conn.close()
     # print('query generated')
 
+ # strQuery = "COPY data_sample  FROM STDIN ( FORMAT 'csv', HEADER false )"
+        #     #     curr.copy_expert(strQuery, sio)
+
 
 def execute_data(data):
     if len(data) > 0:
@@ -95,7 +99,6 @@ def script(file):
         read_data = pd.read_parquet(file, engine='auto')
         read_data = read_data[data_cols]
         data_clean = read_data.replace({np.nan: None})
-        buffer = StringIO(2000000)
 
         temp_arr.append(data_clean, ignore_index=True)
         # if len(data_clean) > 0:
@@ -116,12 +119,74 @@ def script(file):
 
 if __name__ == "__main__":
     start = time.time()
+    files = []
     for file in dir_list:
         check = file.split('.')
         if check[len(check)-1] == 'parquet':
-            script(f'{path}/{file}')
-        else:
-            print("extension error {}".format(f'{path}/{file}'))
-    # for file in files:
-    #         script(file)
+            # files.append(f'{path}/{file}')
+            x = time.time()
+            sio = StringIO()
+            try:
+                read_data = pd.read_parquet(f'{path}/{file}', engine='auto')
+                read_data = read_data[data_cols]
+                read_data = read_data.replace({np.nan: "NULL"})
+                data_list = read_data.values.tolist()
+                for i in data_list:
+                    sio.write(','.join(map(str, i))+'\n')
+            except:
+                print("error file {}".format(file))
+
+            sio.seek(0)
+            with pg_connection.cursor() as curr:
+                curr.copy_from(file=sio, columns=data_cols,
+                               table="data_sample", sep=",", null="NULL")
+                pg_connection.commit()
+            sio.truncate(0)
+            print(time.time()-x)
+
+# buffer insert splitted get 47 second 20 file
+    # splitSize = 5
+    # file_splited = [files[x:x+splitSize]
+    #                 for x in range(0, len(files), splitSize)]
+    # for file in file_splited:
+    #     x = time.time()
+    #     sio = StringIO()
+    #     for file_exe in file:
+    #         try:
+    #             read_data = pd.read_parquet(file_exe, engine='auto')
+    #             read_data = read_data[data_cols]
+    #             read_data = read_data.replace({np.nan: "NULL"})
+    #             data_list = read_data.values.tolist()
+    #             for i in data_list:
+    #                 sio.write(','.join(map(str, i))+'\n')
+    #         except:
+    #             print("error {}".format(file_exe))
+    #     sio.seek(0)
+
+    #     with pg_connection.cursor() as curr:
+    #         curr.copy_from(file=sio, columns=data_cols,
+    #                        table="data_sample", sep=",", null="NULL")
+    #         pg_connection.commit()
+    #     sio.truncate(0)
+    #     print(time.time()-x)
+# buffer insert not splitted get 45 second 20 files
+    # sio = StringIO()
+    # for file_exe in files:
+    #     try:
+    #         read_data = pd.read_parquet(file_exe, engine='auto')
+    #         read_data = read_data[data_cols]
+    #         read_data = read_data.replace({np.nan: "NULL"})
+    #         data_list = read_data.values.tolist()
+    #         for i in data_list:
+    #             sio.write(','.join(map(str, i))+'\n')
+    #     except:
+    #         print("error {}".format(file_exe))
+    # print(sio.read())
+    # sio.seek(0)
+    # with pg_connection.cursor() as curr:
+    #     curr.copy_from(file=sio, columns=data_cols,
+    #                    table="data_sample", sep=",", null="NULL",)
+    #     pg_connection.commit()
+    # sio.truncate(0)
+
     print("Time consumed {}".format(time.time()-start))
